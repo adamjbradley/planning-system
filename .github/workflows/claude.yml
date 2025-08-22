@@ -19,9 +19,9 @@ jobs:
       (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      pull-requests: read
-      issues: read
+      contents: write # Enable Claude to create/modify files
+      pull-requests: write # Enable Claude to create PRs and comments
+      issues: write # Enable Claude to update issues
       id-token: write
       actions: read # Required for Claude to read CI results on PRs
     steps:
@@ -49,16 +49,82 @@ jobs:
           # Optional: Trigger when specific user is assigned to an issue
           # assignee_trigger: "claude-bot"
           
-          # Optional: Allow Claude to run specific commands
-          # allowed_tools: "Bash(npm install),Bash(npm run build),Bash(npm run test:*),Bash(npm run lint:*)"
+          # Allow Claude to run FinPath Explorer specific commands
+          allowed_tools: |
+            Bash(npm install),
+            Bash(npm ci),
+            Bash(npm run build),
+            Bash(npm run test:*),
+            Bash(npm run lint),
+            Bash(npm run lint:*),
+            Bash(npx tsc --noEmit),
+            Bash(wasp build),
+            Bash(wasp start),
+            Bash(wasp db migrate-dev),
+            Bash(wasp db seed),
+            Bash(wasp db reset),
+            Bash(npm run test:financial),
+            Bash(npm run test:country:*),
+            Bash(npm run validate:ato),
+            Bash(npm run validate:irs),
+            Bash(npm run validate:hmrc),
+            Bash(npm run test:accuracy),
+            Bash(npm run test:performance),
+            Bash(git add *),
+            Bash(git commit *),
+            Bash(git push *),
+            Bash(git checkout *),
+            Bash(git branch *)
           
-          # Optional: Add custom instructions for Claude to customize its behavior for your project
-          # custom_instructions: |
-          #   Follow our coding standards
-          #   Ensure all new code has tests
-          #   Use TypeScript for new files
+          # FinPath Explorer specific instructions for Claude
+          custom_instructions: |
+            ## FinPath Explorer Development Guidelines
+            
+            You are working on FinPath Explorer, a multi-country financial planning platform. Follow these critical requirements:
+            
+            ### Financial Accuracy Requirements
+            - ALL financial calculations must be accurate to < 0.01% variance
+            - Cross-reference calculations with official sources (ATO/IRS/HMRC)
+            - Test extensively with edge cases (contribution limits, thresholds, etc.)
+            - Validate multi-country tax scenarios thoroughly
+            
+            ### Architecture Standards
+            - Follow Wasp framework v0.17.0 conventions (see /CLAUDE.md)
+            - Use vertical slice implementation approach for LLM-assisted coding
+            - Implement progressive complexity: ELI5 → Intermediate → Expert modes
+            - Maintain sub-2-second calculation performance requirements
+            
+            ### Code Quality
+            - Use TypeScript for all new files
+            - Follow existing patterns in src/ directory structure
+            - Ensure mobile-first responsive design
+            - Maintain WCAG 2.1 AA accessibility standards
+            - Write comprehensive tests for financial calculations
+            
+            ### Multi-Country Compliance
+            - Support Australia (ATO), USA (IRS), and UK (HMRC) regulations
+            - Handle currency conversions accurately
+            - Implement country-specific tax optimizations
+            - Consider cross-border scenarios and tax treaties
+            
+            ### Before Implementation
+            1. Read relevant documentation in /docs/ directory
+            2. Review existing code patterns in the affected areas
+            3. Check /docs/IMPLEMENTATION_ROADMAP.md for phase-appropriate features
+            4. Ensure compliance with financial planning standards
+            
+            ### Testing Requirements
+            - Run financial accuracy tests before committing
+            - Test across all supported countries (AU/US/UK)
+            - Validate calculations against official calculators
+            - Ensure performance benchmarks are met
           
-          # Optional: Custom environment variables for Claude
-          # claude_env: |
-          #   NODE_ENV: test
+          # FinPath Explorer environment variables for Claude
+          claude_env: |
+            NODE_ENV: development
+            WASP_VERSION: 0.17.0
+            TEST_MODE: financial_accuracy
+            CALCULATION_PRECISION: high
+            MULTI_COUNTRY_SUPPORT: true
+            SUPPORTED_COUNTRIES: AU,US,UK
 
