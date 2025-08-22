@@ -331,6 +331,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      - name: Setup Fly.io CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+        with:
+          version: latest
+      
       - name: Download blog artifacts
         uses: actions/download-artifact@v4
         with:
@@ -343,10 +348,130 @@ jobs:
           name: app-build
           path: planning-system/app/.wasp/build/
       
-      - name: Deploy preview
+      - name: Create preview apps (if they don't exist)
         run: |
-          echo "Deploy preview environment for PR #${{ github.event.number }}"
-          echo "App Preview URL: https://app-pr-${{ github.event.number }}.finpath-preview.dev"
-          echo "Blog Preview URL: https://blog-pr-${{ github.event.number }}.finpath-preview.dev"
+          # Try to create preview apps, ignore if they already exist
+          fly apps create finpath-app-pr-${{ github.event.number }} --org personal || echo "App already exists"
+          fly apps create finpath-blog-pr-${{ github.event.number }} --org personal || echo "Blog app already exists"
         env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      
+      - name: Deploy preview to Fly.io
+        run: |
+          echo "Deploying preview environment for PR #${{ github.event.number }}"
+          
+          # Deploy app
+          cd planning-system/app
+          fly deploy --app finpath-app-pr-${{ github.event.number }} --env PR_NUMBER=${{ github.event.number }}
+          
+          # Deploy blog  
+          cd ../blog
+          fly deploy --app finpath-blog-pr-${{ github.event.number }} --env PR_NUMBER=${{ github.event.number }}
+          
+          echo "✅ Preview deployment complete!"
+          echo "App Preview URL: https://finpath-app-pr-${{ github.event.number }}.fly.dev"
+          echo "Blog Preview URL: https://finpath-blog-pr-${{ github.event.number }}.fly.dev"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           PR_NUMBER: ${{ github.event.number }}
+      
+      - name: Comment preview URLs on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🚀 **Preview deployment complete!**
+              
+              **App:** https://finpath-app-pr-${{ github.event.number }}.fly.dev
+              **Blog:** https://finpath-blog-pr-${{ github.event.number }}.fly.dev
+              
+              *This preview will be automatically cleaned up when the PR is closed.*`
+            })
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build, unit-tests, financial-calculation-tests, blog-build, e2e-tests, performance-tests, security-scan]
+    if: github.ref == 'refs/heads/main'
+    environment: 
+      name: production
+      url: https://finpath-app-prod.fly.dev
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Fly.io CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+        with:
+          version: latest
+      
+      - name: Download blog artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: blog-dist
+          path: planning-system/blog/dist/
+      
+      - name: Download app artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: app-build
+          path: planning-system/app/.wasp/build/
+      
+      - name: Deploy to production
+        run: |
+          echo "🚀 Deploying to production..."
+          
+          # Deploy main app
+          cd planning-system/app
+          fly deploy --app finpath-app-prod --strategy immediate
+          
+          # Deploy blog
+          cd ../blog  
+          fly deploy --app finpath-blog-prod --strategy immediate
+          
+          echo "✅ Production deployment complete!"
+          echo "App: https://finpath-app-prod.fly.dev"
+          echo "Blog: https://finpath-blog-prod.fly.dev"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      
+      - name: Run post-deployment health checks
+        run: |
+          echo "🔍 Running health checks..."
+          
+          # Wait for apps to be ready
+          sleep 30
+          
+          # Check app health
+          curl -f https://finpath-app-prod.fly.dev/health || echo "❌ App health check failed"
+          
+          # Check blog health  
+          curl -f https://finpath-blog-prod.fly.dev/ || echo "❌ Blog health check failed"
+          
+          echo "✅ Health checks complete"
+
+  cleanup-preview:
+    name: Cleanup Preview Apps
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    
+    steps:
+      - name: Setup Fly.io CLI
+        uses: superfly/flyctl-actions/setup-flyctl@master
+        with:
+          version: latest
+      
+      - name: Delete preview apps
+        run: |
+          echo "🧹 Cleaning up preview apps for PR #${{ github.event.number }}"
+          
+          # Delete preview apps
+          fly apps destroy finpath-app-pr-${{ github.event.number }} --yes || echo "App already deleted"
+          fly apps destroy finpath-blog-pr-${{ github.event.number }} --yes || echo "Blog app already deleted"
+          
+          echo "✅ Preview cleanup complete"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
