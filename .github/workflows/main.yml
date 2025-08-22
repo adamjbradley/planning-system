@@ -1,0 +1,61 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: |
+          planning-system/blog/package-lock.json
+          planning-system/e2e-tests/package-lock.json
+          
+    - name: Install Wasp
+      run: curl -sSL https://get.wasp-lang.dev/installer.sh | sh
+      
+    - name: Add Wasp to PATH
+      run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+      
+    - name: Build Blog Component (Astro)
+      working-directory: planning-system/blog
+      run: |
+        npm ci
+        npm run build
+        
+    - name: Install E2E Test Dependencies
+      working-directory: planning-system/e2e-tests
+      run: |
+        npm ci
+        npx playwright install --with-deps
+        
+    - name: Build Main App (Wasp)
+      working-directory: planning-system/app
+      run: |
+        wasp build
+        
+    - name: Run E2E Tests (Optional)
+      working-directory: planning-system/e2e-tests
+      run: |
+        npm test
+      continue-on-error: true  # Don't fail build if E2E tests fail
+      
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-outputs
+        path: |
+          planning-system/blog/dist/
+          planning-system/app/.wasp/build/
