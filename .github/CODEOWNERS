@@ -1,0 +1,36 @@
+# FinPath Explorer Code Owners
+# These owners will be automatically requested for review when someone opens a pull request
+
+# Global owners - review everything
+* @adambradley
+
+# Financial calculation engine - requires accuracy review
+/planning-system/app/src/calculations/ @adambradley
+/planning-system/app/src/tax-engines/ @adambradley
+/docs/features/ @adambradley
+
+# Country-specific implementations
+/planning-system/app/src/countries/australia/ @adambradley
+/planning-system/app/src/countries/usa/ @adambradley
+/planning-system/app/src/countries/uk/ @adambradley
+
+# Database schemas - careful review needed
+/planning-system/app/schema.prisma @adambradley
+/planning-system/app/migrations/ @adambradley
+
+# Frontend components
+/planning-system/app/src/client/ @adambradley
+/planning-system/app/src/components/ @adambradley
+
+# Documentation
+/docs/ @adambradley
+*.md @adambradley
+
+# CI/CD and infrastructure
+/.github/ @adambradley
+/planning-system/app/main.wasp @adambradley
+
+# Testing
+/planning-system/e2e-tests/ @adambradley
+**/*.test.ts @adambradley
+**/*.test.tsx @adambradley

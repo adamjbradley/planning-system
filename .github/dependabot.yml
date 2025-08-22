@@ -1,0 +1,68 @@
+version: 2
+updates:
+  # Main application dependencies
+  - package-ecosystem: "npm"
+    directory: "/planning-system/app"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "javascript"
+    reviewers:
+      - "adambradley"
+    groups:
+      production:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "*eslint*"
+          - "*prettier*"
+          - "@types/*"
+      development:
+        patterns:
+          - "*eslint*"
+          - "*prettier*"
+          - "@types/*"
+    ignore:
+      # Don't update Wasp framework automatically - needs careful testing
+      - dependency-name: "wasp"
+      # Pin specific versions for financial calculation libraries
+      - dependency-name: "decimal.js"
+      - dependency-name: "mathjs"
+
+  # Blog/documentation dependencies
+  - package-ecosystem: "npm"
+    directory: "/planning-system/blog"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "documentation"
+
+  # E2E test dependencies
+  - package-ecosystem: "npm"
+    directory: "/planning-system/e2e-tests"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "testing"
+    groups:
+      playwright:
+        patterns:
+          - "@playwright/*"
+          - "playwright"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "dependencies"
+      - "github-actions"

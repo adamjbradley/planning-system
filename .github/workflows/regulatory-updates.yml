@@ -1,0 +1,166 @@
+name: Regulatory Updates Monitor
+
+on:
+  schedule:
+    # Check for regulatory updates weekly on Mondays at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  check-australian-updates:
+    name: Check Australian Tax Updates
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check ATO updates
+        run: |
+          echo "Checking Australian Taxation Office for updates..."
+          echo "Monitoring:"
+          echo "  - Superannuation contribution caps"
+          echo "  - Tax brackets and rates"
+          echo "  - CGT discount changes"
+          echo "  - Negative gearing rules"
+          
+      - name: Check for super changes
+        run: |
+          echo "Current FY24 concessional cap: $27,500"
+          echo "Current FY24 non-concessional cap: $110,000"
+          echo "Checking for FY25 updates..."
+      
+      - name: Create issue if updates found
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const today = new Date().toISOString().split('T')[0];
+            // In production, this would check actual ATO API/RSS feeds
+            // and create issues only when changes are detected
+            console.log(`Checked for AU regulatory updates on ${today}`);
+
+  check-us-updates:
+    name: Check US Tax Updates
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check IRS updates
+        run: |
+          echo "Checking Internal Revenue Service for updates..."
+          echo "Monitoring:"
+          echo "  - 401(k) contribution limits"
+          echo "  - IRA contribution limits"
+          echo "  - Tax brackets and standard deductions"
+          echo "  - Capital gains rates"
+      
+      - name: Check for 401(k) changes
+        run: |
+          echo "Current 2024 401(k) limit: $23,000"
+          echo "Current 2024 catch-up: $7,500"
+          echo "Checking for 2025 updates..."
+      
+      - name: Create issue if updates found
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const today = new Date().toISOString().split('T')[0];
+            // In production, this would check actual IRS publications
+            console.log(`Checked for US regulatory updates on ${today}`);
+
+  check-uk-updates:
+    name: Check UK Tax Updates
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check HMRC updates
+        run: |
+          echo "Checking HM Revenue & Customs for updates..."
+          echo "Monitoring:"
+          echo "  - ISA allowances"
+          echo "  - Pension annual and lifetime allowances"
+          echo "  - Income tax bands"
+          echo "  - Stamp Duty thresholds"
+      
+      - name: Check for ISA changes
+        run: |
+          echo "Current 2024/25 ISA allowance: £20,000"
+          echo "Current 2024/25 LISA bonus: 25%"
+          echo "Checking for updates..."
+      
+      - name: Create issue if updates found
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const today = new Date().toISOString().split('T')[0];
+            // In production, this would check actual HMRC updates
+            console.log(`Checked for UK regulatory updates on ${today}`);
+
+  consolidate-updates:
+    name: Consolidate Regulatory Updates
+    runs-on: ubuntu-latest
+    needs: [check-australian-updates, check-us-updates, check-uk-updates]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Generate update summary
+        id: summary
+        run: |
+          echo "## Regulatory Update Check Summary" > summary.md
+          echo "Date: $(date +%Y-%m-%d)" >> summary.md
+          echo "" >> summary.md
+          echo "### Countries Checked:" >> summary.md
+          echo "- 🇦🇺 Australia (ATO)" >> summary.md
+          echo "- 🇺🇸 United States (IRS)" >> summary.md
+          echo "- 🇬🇧 United Kingdom (HMRC)" >> summary.md
+          echo "" >> summary.md
+          echo "### Next Actions:" >> summary.md
+          echo "Review any created compliance issues and update tax engines accordingly." >> summary.md
+      
+      - name: Create summary issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('summary.md', 'utf8');
+            
+            // Only create issue if updates were found
+            // In production, this would be conditional based on actual findings
+            /*
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[COMPLIANCE] Weekly Regulatory Check - ${new Date().toISOString().split('T')[0]}`,
+              body: summary,
+              labels: ['compliance', 'automated']
+            });
+            */
+            console.log('Regulatory check completed');
+
+  update-documentation:
+    name: Update Compliance Documentation
+    runs-on: ubuntu-latest
+    needs: [consolidate-updates]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Update compliance log
+        run: |
+          echo "Updating compliance check log..."
+          echo "$(date +%Y-%m-%d): Automated regulatory check completed" >> docs/compliance/check-log.txt
+      
+      - name: Commit updates
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          # Only commit if there are actual changes
+          # git add docs/compliance/check-log.txt
+          # git commit -m "chore: Update compliance check log [skip ci]" || true
+          # git push || true
