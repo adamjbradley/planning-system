@@ -1,0 +1,10 @@
+# fly.toml app configuration file generated for planning-system on 2025-08-23T09:15:58+10:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'planning-system'
+
+[build]
+  builder = "paketobuildpacks/builder:base"
+
