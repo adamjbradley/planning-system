@@ -190,7 +190,7 @@ jobs:
           npm run report:accuracy || true
       
       - name: Upload accuracy report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: accuracy-report
           path: planning-system/app/reports/accuracy-*.json
