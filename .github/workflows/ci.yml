@@ -11,9 +11,66 @@ env:
   WASP_VERSION: '0.17.0'
 
 jobs:
+  # NEW: Pre-flight system checks
+  preflight-checks:
+    name: Pre-flight System Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: System information
+        run: |
+          echo "🔍 System Information:"
+          echo "OS: $(uname -a)"
+          echo "User: $(whoami)"
+          echo "Home: $HOME"
+          echo "PATH: $PATH"
+          echo "Node version: $(node --version)"
+          echo "NPM version: $(npm --version)"
+          
+      - name: Check project structure
+        run: |
+          echo "📁 Project Structure Check:"
+          echo "Root directory contents:"
+          ls -la
+          
+          echo "Planning system directory:"
+          if [ -d "planning-system" ]; then
+            echo "✅ planning-system directory found"
+            ls -la planning-system/
+            
+            # Check each component
+            for component in app blog e2e-tests; do
+              if [ -d "planning-system/$component" ]; then
+                echo "✅ planning-system/$component found"
+                
+                # Check for package.json
+                if [ -f "planning-system/$component/package.json" ]; then
+                  echo "✅ planning-system/$component/package.json found"
+                else
+                  echo "⚠️ planning-system/$component/package.json missing"
+                fi
+              else
+                echo "❌ planning-system/$component directory missing"
+              fi
+            done
+            
+            # Special check for Wasp main.wasp file
+            if [ -f "planning-system/app/main.wasp" ]; then
+              echo "✅ Wasp project file found"
+            else
+              echo "❌ main.wasp file missing in planning-system/app/"
+            fi
+          else
+            echo "❌ planning-system directory not found"
+            exit 1
+          fi
+
   lint-and-type-check:
     name: Lint & Type Check
     runs-on: ubuntu-latest
+    needs: [preflight-checks]
     
     steps:
       - uses: actions/checkout@v4
@@ -41,6 +98,7 @@ jobs:
   blog-build:
     name: Build Blog (Astro)
     runs-on: ubuntu-latest
+    needs: [preflight-checks]
     
     steps:
       - uses: actions/checkout@v4
@@ -74,6 +132,7 @@ jobs:
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
+    needs: [preflight-checks]
     
     steps:
       - uses: actions/checkout@v4
@@ -98,6 +157,7 @@ jobs:
   financial-calculation-tests:
     name: Financial Calculation Accuracy Tests
     runs-on: ubuntu-latest
+    needs: [preflight-checks]
     
     steps:
       - uses: actions/checkout@v4
@@ -132,6 +192,7 @@ jobs:
   multi-country-validation:
     name: Multi-Country Compliance Validation
     runs-on: ubuntu-latest
+    needs: [preflight-checks]
     strategy:
       matrix:
         country: [AU, US, UK]
@@ -174,7 +235,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: planning-system/app/package-lock.json
       
-      # ENHANCED: More robust Wasp installation with error handling
+      # ENHANCED: Robust Wasp installation with comprehensive error handling
       - name: Cache Wasp CLI
         uses: actions/cache@v4
         id: wasp-cache
@@ -187,39 +248,88 @@ jobs:
         run: |
           echo "🔧 Installing Wasp CLI v${{ env.WASP_VERSION }}..."
           
-          # Install with retry logic
+          # Ensure .local/bin directory exists
+          mkdir -p ~/.local/bin
+          
+          # Install with retry logic and detailed logging
           for i in {1..3}; do
             echo "Attempt $i of 3..."
+            
+            # Download and install with detailed output
             if curl -sSL https://get.wasp-lang.dev/installer.sh | sh -s -- -v ${{ env.WASP_VERSION }}; then
-              echo "✅ Wasp installation successful"
-              break
-            else
-              echo "❌ Wasp installation failed on attempt $i"
-              if [ $i -eq 3 ]; then
-                echo "❌ All installation attempts failed"
-                exit 1
+              echo "✅ Wasp installation script completed"
+              
+              # Check if binary was actually installed
+              if [ -f ~/.local/bin/wasp ]; then
+                echo "✅ Wasp binary found at ~/.local/bin/wasp"
+                chmod +x ~/.local/bin/wasp
+                break
+              else
+                echo "❌ Wasp binary not found after installation"
+                echo "Contents of ~/.local/bin:"
+                ls -la ~/.local/bin/ || echo "Directory doesn't exist"
               fi
-              sleep 5
+            else
+              echo "❌ Wasp installation script failed on attempt $i"
             fi
+            
+            if [ $i -eq 3 ]; then
+              echo "❌ All installation attempts failed"
+              echo "Final directory check:"
+              ls -la ~/.local/bin/ || echo "~/.local/bin directory doesn't exist"
+              exit 1
+            fi
+            
+            echo "Waiting 5 seconds before retry..."
+            sleep 5
           done
       
       - name: Setup Wasp PATH and verify installation
         run: |
+          # Add to GitHub PATH for subsequent steps
           echo "$HOME/.local/bin" >> $GITHUB_PATH
+          
+          # Also export for current step
           export PATH="$HOME/.local/bin:$PATH"
           
-          # Verify Wasp is available
           echo "🔍 Verifying Wasp installation..."
+          echo "Current PATH: $PATH"
+          echo "Contents of ~/.local/bin:"
+          ls -la ~/.local/bin/ || echo "Directory doesn't exist"
+          
+          # Multiple verification methods
+          echo "Testing 'which wasp':"
+          which wasp || echo "which command failed"
+          
+          echo "Testing 'command -v wasp':"
           if command -v wasp >/dev/null 2>&1; then
-            echo "✅ Wasp CLI found in PATH"
-            wasp version
+            echo "✅ Wasp CLI found via command -v"
           else
-            echo "❌ Wasp CLI not found in PATH"
-            echo "PATH: $PATH"
-            echo "Contents of ~/.local/bin:"
-            ls -la ~/.local/bin/ || echo "Directory doesn't exist"
-            exit 1
+            echo "❌ Wasp CLI not found via command -v"
           fi
+          
+          echo "Testing direct path access:"
+          if [ -x ~/.local/bin/wasp ]; then
+            echo "✅ Wasp binary is executable at ~/.local/bin/wasp"
+            ~/.local/bin/wasp version || echo "Version command failed"
+          else
+            echo "❌ Wasp binary not executable at ~/.local/bin/wasp"
+          fi
+          
+          # Final verification
+          echo "🎯 Final verification:"
+          wasp version || {
+            echo "❌ Wasp verification failed"
+            echo "Debug info:"
+            echo "HOME: $HOME"
+            echo "USER: $USER"
+            echo "PWD: $PWD"
+            echo "Full ~/.local structure:"
+            find ~/.local -name "wasp*" 2>/dev/null || echo "No wasp files found"
+            exit 1
+          }
+          
+          echo "✅ Wasp CLI successfully installed and verified"
       
       - name: Install dependencies
         working-directory: planning-system/app
@@ -307,7 +417,7 @@ jobs:
             planning-system/app/package-lock.json
             planning-system/e2e-tests/package-lock.json
       
-      # ENHANCED: Reuse cached Wasp installation
+      # ENHANCED: Reuse cached Wasp installation with fallback
       - name: Cache Wasp CLI
         uses: actions/cache@v4
         id: wasp-cache
@@ -319,10 +429,42 @@ jobs:
         if: steps.wasp-cache.outputs.cache-hit != 'true'
         run: |
           echo "🔧 Installing Wasp CLI for E2E tests..."
-          curl -sSL https://get.wasp-lang.dev/installer.sh | sh -s -- -v ${{ env.WASP_VERSION }}
+          
+          # Ensure .local/bin directory exists
+          mkdir -p ~/.local/bin
+          
+          # Install with retry logic
+          for i in {1..3}; do
+            echo "Attempt $i of 3..."
+            if curl -sSL https://get.wasp-lang.dev/installer.sh | sh -s -- -v ${{ env.WASP_VERSION }}; then
+              echo "✅ Wasp installation completed"
+              chmod +x ~/.local/bin/wasp 2>/dev/null || true
+              break
+            else
+              echo "❌ Wasp installation failed on attempt $i"
+              if [ $i -eq 3 ]; then
+                echo "❌ All installation attempts failed"
+                exit 1
+              fi
+              sleep 5
+            fi
+          done
       
-      - name: Setup Wasp PATH
-        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Setup Wasp PATH and verify
+        run: |
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          export PATH="$HOME/.local/bin:$PATH"
+          
+          # Verify installation
+          if command -v wasp >/dev/null 2>&1; then
+            echo "✅ Wasp CLI available for E2E tests"
+            wasp version
+          else
+            echo "❌ Wasp CLI verification failed"
+            echo "Checking ~/.local/bin:"
+            ls -la ~/.local/bin/ || echo "Directory missing"
+            exit 1
+          fi
       
       - name: Install app dependencies
         working-directory: planning-system/app
@@ -386,6 +528,7 @@ jobs:
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
+    needs: [preflight-checks]
     
     steps:
       - uses: actions/checkout@v4
