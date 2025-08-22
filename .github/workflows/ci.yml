@@ -162,7 +162,7 @@ jobs:
   build:
     name: Build Application
     runs-on: ubuntu-latest
-    needs: [lint-and-type-check, blog-build]  # Updated dependency
+    needs: [lint-and-type-check, blog-build]
     
     steps:
       - uses: actions/checkout@v4
@@ -174,10 +174,52 @@ jobs:
           cache: 'npm'
           cache-dependency-path: planning-system/app/package-lock.json
       
-      - name: Install Wasp
+      # ENHANCED: More robust Wasp installation with error handling
+      - name: Cache Wasp CLI
+        uses: actions/cache@v4
+        id: wasp-cache
+        with:
+          path: ~/.local/bin/wasp
+          key: wasp-${{ env.WASP_VERSION }}-${{ runner.os }}
+      
+      - name: Install Wasp CLI
+        if: steps.wasp-cache.outputs.cache-hit != 'true'
         run: |
-          curl -sSL https://get.wasp-lang.dev/installer.sh | sh -s -- -v ${{ env.WASP_VERSION }}
+          echo "🔧 Installing Wasp CLI v${{ env.WASP_VERSION }}..."
+          
+          # Install with retry logic
+          for i in {1..3}; do
+            echo "Attempt $i of 3..."
+            if curl -sSL https://get.wasp-lang.dev/installer.sh | sh -s -- -v ${{ env.WASP_VERSION }}; then
+              echo "✅ Wasp installation successful"
+              break
+            else
+              echo "❌ Wasp installation failed on attempt $i"
+              if [ $i -eq 3 ]; then
+                echo "❌ All installation attempts failed"
+                exit 1
+              fi
+              sleep 5
+            fi
+          done
+      
+      - name: Setup Wasp PATH and verify installation
+        run: |
           echo "$HOME/.local/bin" >> $GITHUB_PATH
+          export PATH="$HOME/.local/bin:$PATH"
+          
+          # Verify Wasp is available
+          echo "🔍 Verifying Wasp installation..."
+          if command -v wasp >/dev/null 2>&1; then
+            echo "✅ Wasp CLI found in PATH"
+            wasp version
+          else
+            echo "❌ Wasp CLI not found in PATH"
+            echo "PATH: $PATH"
+            echo "Contents of ~/.local/bin:"
+            ls -la ~/.local/bin/ || echo "Directory doesn't exist"
+            exit 1
+          fi
       
       - name: Install dependencies
         working-directory: planning-system/app
@@ -189,11 +231,40 @@ jobs:
           name: blog-dist
           path: planning-system/blog/dist/
       
-      - name: Build Wasp application
+      # ENHANCED: Better Wasp build with debugging
+      - name: Verify Wasp project and build
         working-directory: planning-system/app
         run: |
-          echo "Building Wasp application..."
+          echo "🔍 Verifying Wasp project structure..."
+          
+          # Check if main.wasp exists
+          if [ ! -f "main.wasp" ]; then
+            echo "❌ main.wasp file not found"
+            echo "Contents of current directory:"
+            ls -la
+            exit 1
+          fi
+          
+          echo "✅ Found main.wasp file"
+          
+          # Show Wasp project info
+          echo "📋 Wasp project info:"
+          wasp info || true
+          
+          echo "🏗️ Building Wasp application..."
           wasp build
+          
+          echo "✅ Wasp build completed successfully"
+          
+          # Verify build output
+          if [ -d ".wasp/build" ]; then
+            echo "✅ Build directory created"
+            echo "Build contents:"
+            ls -la .wasp/build/ || echo "Build directory empty"
+          else
+            echo "❌ Build directory not found"
+            exit 1
+          fi
         env:
           CI: true
       
@@ -236,10 +307,22 @@ jobs:
             planning-system/app/package-lock.json
             planning-system/e2e-tests/package-lock.json
       
-      - name: Install Wasp
+      # ENHANCED: Reuse cached Wasp installation
+      - name: Cache Wasp CLI
+        uses: actions/cache@v4
+        id: wasp-cache
+        with:
+          path: ~/.local/bin/wasp
+          key: wasp-${{ env.WASP_VERSION }}-${{ runner.os }}
+      
+      - name: Install Wasp CLI
+        if: steps.wasp-cache.outputs.cache-hit != 'true'
         run: |
+          echo "🔧 Installing Wasp CLI for E2E tests..."
           curl -sSL https://get.wasp-lang.dev/installer.sh | sh -s -- -v ${{ env.WASP_VERSION }}
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      
+      - name: Setup Wasp PATH
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
       
       - name: Install app dependencies
         working-directory: planning-system/app
