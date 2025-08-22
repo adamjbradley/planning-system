@@ -37,6 +37,40 @@ jobs:
         working-directory: planning-system/app
         run: npx tsc --noEmit || true
 
+  # NEW: Blog component build and checks
+  blog-build:
+    name: Build Blog (Astro)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: planning-system/blog/package-lock.json
+      
+      - name: Install blog dependencies
+        working-directory: planning-system/blog
+        run: npm ci
+      
+      - name: Run Astro check
+        working-directory: planning-system/blog
+        run: npx astro check
+      
+      - name: Build blog
+        working-directory: planning-system/blog
+        run: npm run build
+      
+      - name: Upload blog build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: blog-dist
+          path: planning-system/blog/dist/
+          retention-days: 7
+
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -128,7 +162,7 @@ jobs:
   build:
     name: Build Application
     runs-on: ubuntu-latest
-    needs: [lint-and-type-check]
+    needs: [lint-and-type-check, blog-build]  # Updated dependency
     
     steps:
       - uses: actions/checkout@v4
@@ -149,13 +183,26 @@ jobs:
         working-directory: planning-system/app
         run: npm ci
       
+      - name: Download blog build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: blog-dist
+          path: planning-system/blog/dist/
+      
       - name: Build Wasp application
         working-directory: planning-system/app
         run: |
           echo "Building Wasp application..."
-          wasp build || true
+          wasp build
         env:
           CI: true
+      
+      - name: Upload app build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-build
+          path: planning-system/app/.wasp/build/
+          retention-days: 7
 
   e2e-tests:
     name: E2E Tests
@@ -184,6 +231,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            planning-system/app/package-lock.json
+            planning-system/e2e-tests/package-lock.json
       
       - name: Install Wasp
         run: |
@@ -202,9 +253,15 @@ jobs:
         working-directory: planning-system/e2e-tests
         run: npx playwright install --with-deps
       
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: app-build
+          path: planning-system/app/.wasp/build/
+      
       - name: Run E2E tests
         working-directory: planning-system/e2e-tests
-        run: npm run test:ci || true
+        run: npm run test:ci
         env:
           CI: true
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/finpath_test
@@ -250,8 +307,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Run security audit
+      - name: Run security audit - App
         working-directory: planning-system/app
+        run: npm audit --audit-level=high || true
+      
+      - name: Run security audit - Blog
+        working-directory: planning-system/blog
         run: npm audit --audit-level=high || true
       
       - name: Check for secrets
@@ -264,15 +325,28 @@ jobs:
   deploy-preview:
     name: Deploy Preview
     runs-on: ubuntu-latest
-    needs: [build, unit-tests, financial-calculation-tests]
+    needs: [build, unit-tests, financial-calculation-tests, blog-build]
     if: github.event_name == 'pull_request'
     
     steps:
       - uses: actions/checkout@v4
       
+      - name: Download blog artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: blog-dist
+          path: planning-system/blog/dist/
+      
+      - name: Download app artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: app-build
+          path: planning-system/app/.wasp/build/
+      
       - name: Deploy preview
         run: |
           echo "Deploy preview environment for PR #${{ github.event.number }}"
-          echo "Preview URL: https://pr-${{ github.event.number }}.finpath-preview.dev"
+          echo "App Preview URL: https://app-pr-${{ github.event.number }}.finpath-preview.dev"
+          echo "Blog Preview URL: https://blog-pr-${{ github.event.number }}.finpath-preview.dev"
         env:
           PR_NUMBER: ${{ github.event.number }}
