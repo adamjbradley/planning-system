@@ -31,7 +31,7 @@ jobs:
       
       - name: Create issue if updates found
         if: success()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const today = new Date().toISOString().split('T')[0];
@@ -63,7 +63,7 @@ jobs:
       
       - name: Create issue if updates found
         if: success()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const today = new Date().toISOString().split('T')[0];
@@ -94,7 +94,7 @@ jobs:
       
       - name: Create issue if updates found
         if: success()
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const today = new Date().toISOString().split('T')[0];
@@ -124,7 +124,7 @@ jobs:
           echo "Review any created compliance issues and update tax engines accordingly." >> summary.md
       
       - name: Create summary issue
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
