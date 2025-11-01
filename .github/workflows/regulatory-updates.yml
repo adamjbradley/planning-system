@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       
       - name: Check ATO updates
         run: |
@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       
       - name: Check IRS updates
         run: |
@@ -75,7 +75,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       
       - name: Check HMRC updates
         run: |
@@ -107,7 +107,7 @@ jobs:
     needs: [check-australian-updates, check-us-updates, check-uk-updates]
     
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       
       - name: Generate update summary
         id: summary
@@ -149,7 +149,7 @@ jobs:
     needs: [consolidate-updates]
     
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       
       - name: Update compliance log
         run: |
